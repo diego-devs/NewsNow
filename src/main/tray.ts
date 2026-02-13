@@ -5,41 +5,28 @@ let tray: Tray | null = null;
 
 function createTrayIcon(): Electron.NativeImage {
   // Try to load icon file first
-  const iconPath = path.join(
-    app.isPackaged ? process.resourcesPath : process.cwd(),
-    'assets', 'icons', 'tray-icon.ico'
-  );
+  const iconPaths = [
+    path.join(process.cwd(), 'assets', 'icons', 'tray-icon.ico'),
+    path.join(app.getAppPath(), 'assets', 'icons', 'tray-icon.ico'),
+  ];
 
-  try {
-    const icon = nativeImage.createFromPath(iconPath);
-    if (!icon.isEmpty()) return icon;
-  } catch {
-    // Fall through to programmatic icon
-  }
-
-  // Create a simple 16x16 programmatic icon (blue N on transparent)
-  const size = 16;
-  const canvas = Buffer.alloc(size * size * 4); // RGBA
-  // Fill with a colored "N" shape pixel pattern
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const idx = (y * size + x) * 4;
-      const isN =
-        (x >= 2 && x <= 4) || // left bar
-        (x >= 11 && x <= 13) || // right bar
-        (x >= 2 && x <= 13 && Math.abs(x - 2 - (y * 11) / 15) < 2); // diagonal
-      if (isN && y >= 2 && y <= 13) {
-        canvas[idx] = 99;     // R
-        canvas[idx + 1] = 102; // G
-        canvas[idx + 2] = 241; // B (accent color)
-        canvas[idx + 3] = 255; // A
-      } else {
-        canvas[idx + 3] = 0; // transparent
-      }
+  for (const iconPath of iconPaths) {
+    try {
+      const icon = nativeImage.createFromPath(iconPath);
+      if (!icon.isEmpty()) return icon;
+    } catch {
+      // try next
     }
   }
 
-  return nativeImage.createFromBuffer(canvas, { width: size, height: size });
+  // Create a 16x16 SVG-based icon as fallback
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+    <rect width="16" height="16" rx="3" fill="#6366f1"/>
+    <text x="8" y="12" text-anchor="middle" fill="white" font-family="Arial" font-weight="bold" font-size="11">N</text>
+  </svg>`;
+
+  const dataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+  return nativeImage.createFromDataURL(dataUrl);
 }
 
 export function createTray(mainWindow: BrowserWindow): Tray {

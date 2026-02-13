@@ -1,7 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import started from 'electron-squirrel-startup';
 import { setApiKey } from './api/news-api';
 import { registerIpcHandlers } from './ipc-handlers';
 import { createTray } from './tray';
@@ -9,9 +8,27 @@ import { startScheduler, stopScheduler } from './scheduler';
 import { isLaunchedHidden } from './autostart';
 import { getSettings } from './store';
 
-// Handle Squirrel startup events
-if (started) {
-  app.quit();
+// Fix black/blank window on systems where GPU acceleration fails
+app.disableHardwareAcceleration();
+
+// Log uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err);
+});
+
+// Handle Squirrel startup events (only in packaged builds)
+if (app.isPackaged) {
+  try {
+    const started = require('electron-squirrel-startup');
+    if (started) {
+      app.quit();
+    }
+  } catch {
+    // Not available in dev
+  }
 }
 
 // Load .env file manually (Vite bundles main process, so require('dotenv') won't work)
@@ -58,12 +75,22 @@ const createWindow = (): BrowserWindow => {
     minHeight: 600,
     frame: false,
     backgroundColor: '#0a0a0b',
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Log renderer errors to main process console
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const prefix = ['LOG', 'WARN', 'ERROR'][level] || 'LOG';
+    console.log(`[Renderer ${prefix}] ${message} (${sourceId}:${line})`);
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Renderer] Failed to load: ${validatedURL} - ${errorCode} ${errorDescription}`);
   });
 
   // Load the app
@@ -94,11 +121,20 @@ const createWindow = (): BrowserWindow => {
   // Register IPC handlers
   registerIpcHandlers(mainWindow);
 
-  // Create system tray
-  createTray(mainWindow);
+  // Create system tray (non-fatal if it fails)
+  try {
+    createTray(mainWindow);
+  } catch (err) {
+    console.error('Failed to create tray:', err);
+  }
 
   // Start auto-refresh scheduler
   startScheduler(mainWindow);
+
+  // Open DevTools in dev mode
+  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    mainWindow.webContents.openDevTools();
+  }
 
   return mainWindow;
 };

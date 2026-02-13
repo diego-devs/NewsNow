@@ -3,9 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:* http://localhost:* https:; img-src 'self' data: https:;"
+    />
     <title>NewsNow</title>
     <style>
-      body { margin: 0; background: #0a0a0b; }
+      body { margin: 0; background: #0a0a0b; color: #e8e8ed; font-family: sans-serif; }
     </style>
   </head>
   <body>
